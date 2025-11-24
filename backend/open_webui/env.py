@@ -112,11 +112,13 @@ for source in log_sources:
 
 log.setLevel(SRC_LOG_LEVELS["CONFIG"])
 
-WEBUI_NAME = os.environ.get("WEBUI_NAME", "Open WebUI")
-if WEBUI_NAME != "Open WebUI":
-    WEBUI_NAME += " (Open WebUI)"
+#WEBUI_NAME = os.environ.get("WEBUI_NAME", "Open WebUI")
+#if WEBUI_NAME != "Open WebUI":
+#    WEBUI_NAME += " (Open WebUI)"
+WEBUI_NAME = "Coachlibre WebUI"
 
-WEBUI_FAVICON_URL = "https://openwebui.com/favicon.png"
+#WEBUI_FAVICON_URL = "https://openwebui.com/favicon.png"
+WEBUI_FAVICON_URL = "https://instagram.frns1-1.fna.fbcdn.net/v/t51.2885-19/491444543_17849125581448944_1900221133271644457_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby41MDAuYzIifQ&_nc_ht=instagram.frns1-1.fna.fbcdn.net&_nc_cat=100&_nc_oc=Q6cZ2QH8Qm33gTTvNPEN1jb85yL78vuaztE5pjulQpm9K9r3d-AQ-h6hkzoYY31Gmh8w7OI&_nc_ohc=-Cc8m83xL-wQ7kNvwET43vT&_nc_gid=SmBToms9r5_dX2wLhpfLXQ&edm=AP4sbd4BAAAA&ccb=7-5&oh=00_Afjn4VePw1ZNkonQOkH-wK8Wr4ALwPlhupvjVbQcBwH_wA&oe=692A5C5C&_nc_sid=7a9f4b"
 
 TRUSTED_SIGNATURE_KEY = os.environ.get("TRUSTED_SIGNATURE_KEY", "")
 
