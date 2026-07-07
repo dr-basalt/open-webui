@@ -35,6 +35,7 @@ type ChunkConfigForm = {
 type DocumentIntelligenceConfigForm = {
 	key: string;
 	endpoint: string;
+	model: string;
 };
 
 type ContentExtractConfigForm = {
@@ -53,9 +54,11 @@ type RAGConfigForm = {
 	PDF_EXTRACT_IMAGES?: boolean;
 	ENABLE_GOOGLE_DRIVE_INTEGRATION?: boolean;
 	ENABLE_ONEDRIVE_INTEGRATION?: boolean;
+	EXTERNAL_DOCUMENT_LOADER_HEADERS?: Record<string, string>;
 	chunk?: ChunkConfigForm;
 	content_extraction?: ContentExtractConfigForm;
 	web_loader_ssl_verification?: boolean;
+	web?: Record<string, unknown>;
 	youtube?: YoutubeConfigForm;
 };
 
@@ -295,42 +298,6 @@ export interface SearchDocument {
 	filenames: string[];
 }
 
-export const processFile = async (
-	token: string,
-	file_id: string,
-	collection_name: string | null = null
-) => {
-	let error = null;
-
-	const res = await fetch(`${RETRIEVAL_API_BASE_URL}/process/file`, {
-		method: 'POST',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			authorization: `Bearer ${token}`
-		},
-		body: JSON.stringify({
-			file_id: file_id,
-			collection_name: collection_name ? collection_name : undefined
-		})
-	})
-		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
-		})
-		.catch((err) => {
-			error = err.detail;
-			console.error(err);
-			return null;
-		});
-
-	if (error) {
-		throw error;
-	}
-
-	return res;
-};
-
 export const processYoutubeVideo = async (token: string, url: string) => {
 	let error = null;
 
@@ -362,10 +329,21 @@ export const processYoutubeVideo = async (token: string, url: string) => {
 	return res;
 };
 
-export const processWeb = async (token: string, collection_name: string, url: string) => {
+export const processWeb = async (
+	token: string,
+	collection_name: string,
+	url: string,
+	process: boolean = true
+) => {
 	let error = null;
 
-	const res = await fetch(`${RETRIEVAL_API_BASE_URL}/process/web`, {
+	const searchParams = new URLSearchParams();
+
+	if (!process) {
+		searchParams.append('process', 'false');
+	}
+
+	const res = await fetch(`${RETRIEVAL_API_BASE_URL}/process/web?${searchParams.toString()}`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',

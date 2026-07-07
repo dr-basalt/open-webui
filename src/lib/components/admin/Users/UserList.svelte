@@ -1,8 +1,8 @@
-<script>
+<script lang="ts">
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 	import { WEBUI_NAME, config, user, showSidebar } from '$lib/stores';
 	import { goto } from '$app/navigation';
-	import { onMount, getContext } from 'svelte';
+	import { onMount, getContext, onDestroy } from 'svelte';
 
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
@@ -33,6 +33,8 @@
 	import Banner from '$lib/components/common/Banner.svelte';
 	import Markdown from '$lib/components/chat/Messages/Markdown.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
+	import ProfilePreview from '$lib/components/channel/Messages/Message/ProfilePreview.svelte';
+	import UserPreviewModal from '$lib/components/admin/UserPreviewModal.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -42,6 +44,7 @@
 	let total = null;
 
 	let query = '';
+	let searchDebounceTimer: ReturnType<typeof setTimeout>;
 	let orderBy = 'created_at'; // default sort key
 	let direction = 'asc'; // default sort order
 
@@ -52,6 +55,7 @@
 
 	let showUserChatsModal = false;
 	let showEditUserModal = false;
+	let showUserPreviewModal = false;
 
 	const deleteUserHandler = async (id) => {
 		const res = await deleteUserById(localStorage.token, id).catch((error) => {
@@ -96,13 +100,24 @@
 		}
 	};
 
-	$: if (page) {
+	const handleSearchInput = () => {
+		clearTimeout(searchDebounceTimer);
+		searchDebounceTimer = setTimeout(() => {
+			if (page !== 1) {
+				page = 1;
+			} else {
+				getUserList();
+			}
+		}, 300);
+	};
+
+	$: if (page !== null && orderBy !== null && direction !== null) {
 		getUserList();
 	}
 
-	$: if (query !== null && orderBy && direction) {
-		getUserList();
-	}
+	onDestroy(() => {
+		clearTimeout(searchDebounceTimer);
+	});
 </script>
 
 <ConfirmDialog
@@ -198,6 +213,8 @@
 					<input
 						class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
 						bind:value={query}
+						on:input={handleSearchInput}
+						aria-label={$i18n.t('Search')}
 						placeholder={$i18n.t('Search')}
 					/>
 				</div>
@@ -221,7 +238,7 @@
 	<div class="scrollbar-hidden relative whitespace-nowrap overflow-x-auto max-w-full">
 		<table class="w-full text-sm text-left text-gray-500 dark:text-gray-400 table-auto max-w-full">
 			<thead class="text-xs text-gray-800 uppercase bg-transparent dark:text-gray-200">
-				<tr class=" border-b-[1.5px] border-gray-50 dark:border-gray-850">
+				<tr class=" border-b-[1.5px] border-gray-50 dark:border-gray-850/30">
 					<th
 						scope="col"
 						class="px-2.5 py-2 cursor-pointer select-none"
@@ -299,6 +316,7 @@
 					>
 						<div class="flex gap-1.5 items-center">
 							{$i18n.t('Last Active')}
+							<!-- {$i18n.t('Last Modified')} -->
 
 							{#if orderBy === 'last_active_at'}
 								<span class="font-normal"
@@ -342,11 +360,12 @@
 				</tr>
 			</thead>
 			<tbody class="">
-				{#each users as user, userIdx}
+				{#each users as user, userIdx (user.id)}
 					<tr class="bg-white dark:bg-gray-900 dark:border-gray-850 text-xs">
 						<td class="px-3 py-1 min-w-[7rem] w-28">
 							<button
 								class=" translate-y-0.5"
+								aria-label={$i18n.t('Change User Role')}
 								on:click={() => {
 									selectedUser = user;
 									showEditUserModal = !showEditUserModal;
@@ -359,17 +378,33 @@
 							</button>
 						</td>
 						<td class="px-3 py-1 font-medium text-gray-900 dark:text-white max-w-48">
-							<div class="flex items-center">
-								<img
-									class="rounded-full w-6 h-6 object-cover mr-2.5 flex-shrink-0"
-									src={`${WEBUI_API_BASE_URL}/users/${user.id}/profile/image`}
-									alt="user"
-								/>
+							<div class="flex items-center gap-2">
+								<ProfilePreview {user} side="right" align="center" sideOffset={6}>
+									<img
+										class="rounded-full w-6 min-w-6 h-6 object-cover mr-0.5 flex-shrink-0"
+										src={`${WEBUI_API_BASE_URL}/users/${user.id}/profile/image`}
+										alt="user"
+										on:error={(e) => {
+											e.currentTarget.src = '/favicon.png';
+										}}
+									/>
+								</ProfilePreview>
 
 								<div class="font-medium truncate">{user.name}</div>
+
+								{#if user?.last_active_at && Date.now() / 1000 - user.last_active_at < 180}
+									<div>
+										<span class="relative flex size-1.5">
+											<span
+												class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"
+											></span>
+											<span class="relative inline-flex size-1.5 rounded-full bg-green-500"></span>
+										</span>
+									</div>
+								{/if}
 							</div>
 						</td>
-						<td class=" px-3 py-1"> {user.email} </td>
+						<td class=" px-3 py-1 max-w-48 truncate"> {user.email} </td>
 
 						<td class=" px-3 py-1">
 							{dayjs(user.last_active_at * 1000).fromNow()}
@@ -385,6 +420,7 @@
 									<Tooltip content={$i18n.t('Chats')}>
 										<button
 											class="self-center w-fit text-sm px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
+											aria-label={$i18n.t('Chats')}
 											on:click={async () => {
 												showUserChatsModal = !showUserChatsModal;
 												selectedUser = user;
@@ -395,9 +431,43 @@
 									</Tooltip>
 								{/if}
 
+								{#if user.role !== 'admin'}
+									<Tooltip content={$i18n.t('Preview Access')}>
+										<button
+											class="self-center w-fit text-sm px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
+											aria-label={$i18n.t('Preview Access')}
+											on:click={() => {
+												selectedUser = user;
+												showUserPreviewModal = true;
+											}}
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke-width="1.5"
+												stroke="currentColor"
+												class="w-4 h-4"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"
+												/>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+												/>
+											</svg>
+										</button>
+									</Tooltip>
+								{/if}
+
 								<Tooltip content={$i18n.t('Edit User')}>
 									<button
 										class="self-center w-fit text-sm px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
+										aria-label={$i18n.t('Edit User')}
 										on:click={async () => {
 											showEditUserModal = !showEditUserModal;
 											selectedUser = user;
@@ -424,6 +494,7 @@
 									<Tooltip content={$i18n.t('Delete User')}>
 										<button
 											class="self-center w-fit text-sm px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
+											aria-label={$i18n.t('Delete User')}
 											on:click={async () => {
 												showDeleteConfirmDialog = true;
 												selectedUser = user;
@@ -480,9 +551,17 @@
 > Your support helps us stay independent and continue building great tools for everyone. 💛
 > 
 > - 👉 **[Click here to learn more about enterprise licensing](https://docs.openwebui.com/enterprise)**
-> - 👉 *[Click here to sponsor the project on GitHub](https://github.com/sponsors/tjbck)*
+> - 👉 *[Click here to sponsor the project on GitHub](https://github.com/sponsors/open-webui)*
 `}
 			/>
 		</div>
 	{/if}
+{/if}
+
+{#if selectedUser}
+	<UserPreviewModal
+		bind:show={showUserPreviewModal}
+		userId={selectedUser.id}
+		userName={selectedUser.name}
+	/>
 {/if}
